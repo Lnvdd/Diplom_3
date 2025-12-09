@@ -1,136 +1,103 @@
 import allure
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    StaleElementReferenceException
+)
 from pages.base_page import BasePage
-from locators import OrdersFeedLocators
-from selenium.webdriver.support import expected_conditions as EC
+from locators import OrdersFeedLocators, Urls
 
 
 class OrdersPage(BasePage):
-    """Класс для работы с лентой заказов"""
 
     def open_feed(self):
-        """Открыть ленту заказов"""
-        self.open("/feed")
-        self.find_visible_element(OrdersFeedLocators.COMPLETED_ALL_TIME)
+        with allure.step("Открыть ленту заказов"):
+            self.go_to_url(Urls.FEED)
 
     def _parse_counter_text(self, text: str) -> int:
-        digits = "".join(ch for ch in text if ch.isdigit())
-        if not digits:
-            raise ValueError(f"Не удалось извлечь число из текста счётчика: {text!r}")
-        return int(digits)
+        with allure.step(f"Парсить число из текста: {text}"):
+            digits = "".join(ch for ch in text if ch.isdigit())
+            if not digits:
+                raise ValueError(f"Не удалось извлечь число: {text!r}")
+            return int(digits)
 
     def get_completed_all_time_count(self) -> int:
-        
-        with allure.step("Получить счётчик 'Выполнено за всё время'"):
+        with allure.step("Получить счётчик завершённых заказов (всё время)"):
             try:
-                count_elem = self.find_visible_element(OrdersFeedLocators.COMPLETED_ALL_TIME)
-                count_text = count_elem.text.strip()
+                counter_element = self.find_visible_element(OrdersFeedLocators.COMPLETED_ALL_TIME)
+                count_text = counter_element.text.strip()
                 value = self._parse_counter_text(count_text)
-                allure.attach(
-                    f"Значение счётчика: {value}",
-                    name="counter_value",
-                    attachment_type=allure.attachment_type.TEXT
-                )
+                allure.attach(f"Значение счётчика: {value}", "counter_value", allure.attachment_type.TEXT)
                 return value
-            except Exception as e:
-                allure.attach(
-                    str(e),
-                    name="error",
-                    attachment_type=allure.attachment_type.TEXT
-                )
-                raise
+            except (NoSuchElementException, TimeoutException, ValueError) as e:
+                allure.attach(str(e), "error", allure.attachment_type.TEXT)
+                return 0
 
     def get_completed_today_count(self) -> int:
-        
-        with allure.step("Получить счётчик 'Выполнено за сегодня'"):
+        with allure.step("Получить счётчик завершённых заказов (сегодня)"):
             try:
-                count_elem = self.find_visible_element(OrdersFeedLocators.COMPLETED_TODAY)
-                count_text = count_elem.text.strip()
+                counter_element = self.find_visible_element(OrdersFeedLocators.COMPLETED_TODAY)
+                count_text = counter_element.text.strip()
                 value = self._parse_counter_text(count_text)
-                allure.attach(
-                    f"Значение счётчика: {value}",
-                    name="counter_value",
-                    attachment_type=allure.attachment_type.TEXT
-                )
+                allure.attach(f"Значение счётчика: {value}", "counter_value", allure.attachment_type.TEXT)
                 return value
-            except Exception as e:
-                allure.attach(
-                    str(e),
-                    name="error",
-                    attachment_type=allure.attachment_type.TEXT
-                )
-                raise
+            except (NoSuchElementException, TimeoutException, ValueError) as e:
+                allure.attach(str(e), "error", allure.attachment_type.TEXT)
+                return 0
+
+    def is_element_visible(self, locator):
+        with allure.step("Проверить видимость элемента"):
+            return self.wait_for_element_visible(locator)
 
     def find_order_in_work_section(self, order_number: str) -> bool:
-      
         with allure.step(f"Найти заказ {order_number} в разделе 'В работе'"):
             try:
                 clean_target = "".join(ch for ch in order_number if ch.isdigit())
-                
-                self.wait.until(
-                    EC.presence_of_all_elements_located(OrdersFeedLocators.IN_WORK_ORDERS)
-                )
-                
-                order_elements = self.driver.find_elements(*OrdersFeedLocators.IN_WORK_ORDERS)
+                self.wait_for_element_visible(OrdersFeedLocators.IN_WORK_ORDERS)
+                order_elements = self.find_all_elements(OrdersFeedLocators.IN_WORK_ORDERS)
                 
                 for elem in order_elements:
                     text = elem.text.strip()
                     clean_text = "".join(ch for ch in text if ch.isdigit())
-                    
                     if clean_target == clean_text or clean_target in clean_text:
-                        allure.attach(
-                            f"Найден заказ: {clean_target}",
-                            name="found_order",
-                            attachment_type=allure.attachment_type.TEXT
-                        )
+                        allure.attach(f"Найден заказ: {clean_target}", "found_order", allure.attachment_type.TEXT)
                         return True
                 
-                allure.attach(
-                    f"Заказ {clean_target} не найден",
-                    name="order_not_found",
-                    attachment_type=allure.attachment_type.TEXT
-                )
+                allure.attach(f"Заказ {clean_target} не найден", "order_not_found", allure.attachment_type.TEXT)
                 return False
-                
-            except Exception as e:
-                allure.attach(
-                    str(e),
-                    name="error",
-                    attachment_type=allure.attachment_type.TEXT
-                )
+            except (NoSuchElementException, TimeoutException, StaleElementReferenceException) as e:
+                allure.attach(str(e), "error", allure.attachment_type.TEXT)
                 return False
 
     def get_in_work_order_numbers(self) -> list:
-      
-        with allure.step("Получить все номера заказов"):
+        with allure.step("Получить все номера заказов в работе"):
             try:
-    
-                self.wait.until(
-                    EC.presence_of_all_elements_located(OrdersFeedLocators.IN_WORK_ORDERS)
-                )
-                
-                order_elements = self.driver.find_elements(*OrdersFeedLocators.IN_WORK_ORDERS)
+                self.wait_for_element_visible(OrdersFeedLocators.IN_WORK_ORDERS)
+                order_elements = self.find_all_elements(OrdersFeedLocators.IN_WORK_ORDERS)
                 order_numbers = []
                 seen = set()
                 
                 for elem in order_elements:
                     text = elem.text.strip()
                     clean_num = "".join(ch for ch in text if ch.isdigit())
-                    
                     if clean_num and len(clean_num) >= 4 and clean_num not in seen:
                         order_numbers.append(clean_num)
                         seen.add(clean_num)
                 
-                allure.attach(
-                    f"Найденные номера: {', '.join(order_numbers)}",
-                    name="order_numbers",
-                    attachment_type=allure.attachment_type.TEXT
-                )
+                allure.attach(f"Найденные номера: {', '.join(order_numbers)}", "order_numbers", allure.attachment_type.TEXT)
                 return order_numbers
-                
-            except Exception as e:
-                allure.attach(
-                    str(e),
-                    name="error",
-                    attachment_type=allure.attachment_type.TEXT
-                )
+            except (NoSuchElementException, TimeoutException, StaleElementReferenceException) as e:
+                allure.attach(str(e), "error", allure.attachment_type.TEXT)
                 return []
+
+    def wait_for_completed_today_count_change(self, initial_count: int, timeout: int = 15):
+        with allure.step(f"Ждать изменения счётчика за сегодня (было: {initial_count})"):
+            def count_changed(driver):
+                try:
+                    current_count = self.get_completed_today_count()
+                    return current_count > initial_count
+                except (NoSuchElementException, TimeoutException, StaleElementReferenceException, ValueError):
+                    return False
+            
+            self.wait.until(count_changed, timeout)
+            return self.get_completed_today_count()
