@@ -1,92 +1,102 @@
-import re
 import allure
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.support import expected_conditions as EC
 from pages.base_page import BasePage
+from locators.ingredient_locators import Ingredients, IngredientLocators
 from locators import (
     HeaderLocators,
+    ModalLocators,
     IngredientLocators,
     BasketLocators,
-    ModalLocators,
     OrdersFeedLocators,
     Urls
 )
 
-
 class MainPage(BasePage):
-
+    """Главная страница приложения"""
+    
     def open_main(self):
+        """Открыть главную страницу"""
         with allure.step("Открыть главную страницу"):
-            self.go_to_url(Urls.MAIN)
-
+            self.open(Urls.MAIN)
+            self.wait.until(EC.visibility_of_element_located(HeaderLocators.CONSTRUCTOR_TAB))
+    
     def click_constructor_tab(self):
-        with allure.step("Кликнуть на вкладку Конструктор"):
+        """Кликнуть на вкладку 'Конструктор'"""
+        with allure.step("Кликнуть на вкладку 'Конструктор'"):
             self.click_element(HeaderLocators.CONSTRUCTOR_TAB)
-
+    
     def click_orders_feed_tab(self):
-        with allure.step("Кликнуть на вкладку Лента заказов"):
+        """Кликнуть на вкладку 'Лента Заказов'"""
+        with allure.step("Кликнуть на вкладку 'Лента Заказов'"):
             self.click_element(HeaderLocators.ORDERS_FEED_TAB)
-
-    def get_current_url(self):
-        with allure.step("Получить текущий URL"):
-            return self.driver.current_url
-
-    def is_constructor_tab_visible(self) -> bool:
-        with allure.step("Проверить видимость вкладки Конструктор"):
-            return self.is_element_visible(HeaderLocators.CONSTRUCTOR_TAB)
-
-    def is_element_visible(self, locator):
-        with allure.step("Проверить видимость элемента"):
-            return self.wait_for_element_visible(locator)
-
-    def is_element_invisible(self, locator):
-        with allure.step("Проверить невидимость элемента"):
-            return self.wait_for_element_invisible(locator)
-
+            self.wait.until(EC.visibility_of_element_located(OrdersFeedLocators.COMPLETED_ALL_TIME))
+    
     def click_ingredient(self, ingredient_name):
+        """Кликнуть на ингредиент по названию"""
         with allure.step(f"Кликнуть на ингредиент '{ingredient_name}'"):
-            ingredient_img_xpath = f"//img[@alt='{ingredient_name}']"
-            element = self.find_clickable_element((By.XPATH, ingredient_img_xpath))
-            element.click()
-
+            locator = self.get_locator_with_text(
+                IngredientLocators.INGREDIENT_BY_NAME_XPATH,
+                ingredient_name
+            )
+            self.click_element(locator)
+            self.wait.until(EC.visibility_of_element_located(IngredientLocators.MODAL_WINDOW))
+    
     def close_modal(self):
+        """Закрыть модальное окно ингредиента"""
         with allure.step("Закрыть модальное окно"):
-            close_button_xpath = "//button[contains(@class, 'Modal_modal__close')]"
-            self.click_element((By.XPATH, close_button_xpath))
-
+            self.click_element(IngredientLocators.MODAL_CLOSE_BTN)
+            self.wait.until(EC.invisibility_of_element_located(IngredientLocators.MODAL_WINDOW))
+    
+    def close_order_modal(self):
+        """Закрыть модальное окно заказа"""
+        with allure.step("Закрыть модальное окно заказа"):
+            self.click_element(ModalLocators.ORDER_CLOSE_BTN)
+            self.wait.until(EC.invisibility_of_element_located(ModalLocators.MODAL))
+    
     def drag_ingredient_to_basket(self, ingredient_name):
-        with allure.step(f"Перетащить ингредиент '{ingredient_name}' в корзину"):
-            ingredient_xpath = f"//p[contains(text(), '{ingredient_name}')]"
-            basket_locator = BasketLocators.BURGER_BASKET
-            self.drag_and_drop((By.XPATH, ingredient_xpath), basket_locator)
-
-    def get_ingredient_counter(self, ingredient_name) -> int:
-        with allure.step(f"Получить счётчик ингредиента '{ingredient_name}'"):
-            try:
-                ingredient_xpath = f"//p[contains(text(), '{ingredient_name}')]"
-                self.find_element((By.XPATH, ingredient_xpath))
-                counter_xpath = f"//p[contains(text(), '{ingredient_name}')]/following-sibling::span"
-                counter_elem = self.find_element((By.XPATH, counter_xpath))
-                counter_text = counter_elem.text.strip()
-                counter_value = int(''.join(filter(str.isdigit, counter_text))) if counter_text else 0
-                return counter_value
-            except (NoSuchElementException, TimeoutException, ValueError) as e:
-                allure.attach(str(e), "error", allure.attachment_type.TEXT)
-                return 0
-
+        """Добавить ингредиент в корзину методом drag-and-drop"""
+        with allure.step(f"Добавить '{ingredient_name}' в корзину"):
+            locator = self.get_locator_with_text(
+                IngredientLocators.INGREDIENT_BY_NAME_XPATH, 
+                ingredient_name
+            )
+            ingredient = self.wait.until(EC.presence_of_element_located(locator))
+            basket = self.wait.until(EC.presence_of_element_located(BasketLocators.BURGER_BASKET))
+            self.actions.move_to_element(ingredient).pause(0.3).drag_and_drop(ingredient, basket).perform()
+            self.wait.until(EC.element_to_be_clickable(BasketLocators.ORDER_SUBMIT_BTN))
+    
     def submit_order(self):
+        """Оформить заказ (без получения номера)"""
         with allure.step("Оформить заказ"):
             button = self.find_clickable_element(BasketLocators.ORDER_SUBMIT_BTN)
             button.click()
-
+            self.wait_for_order_number(ModalLocators.ORDER_NUMBER_MODAL)
+    
     def submit_order_and_get_number(self) -> str:
+        """Оформить заказ и получить номер"""
         with allure.step("Оформить заказ и получить номер"):
             button = self.find_clickable_element(BasketLocators.ORDER_SUBMIT_BTN)
             button.click()
-            self.find_visible_element(ModalLocators.ORDER_DETAILS_MODAL)
-            
-            with allure.step("Ждём загрузки нормального номера заказа"):
-                order_number_text = self.find_visible_element(ModalLocators.ORDER_NUMBER_MODAL).text.strip()
-                order_number = re.sub(r'[^\d]', '', order_number_text)
-                allure.attach(f"Номер заказа: {order_number}", "order_number", allure.attachment_type.TEXT)
-                return order_number
+            self.wait.until(EC.presence_of_element_located(ModalLocators.ORDER_DETAILS_MODAL))
+            with allure.step("Ждём загрузки нормального номера заказа (не 9999)"):
+                order_number = self.wait_for_order_number(ModalLocators.ORDER_NUMBER_MODAL)
+                allure.attach(
+                    f"Номер заказа: {order_number}",
+                    name="order_number",
+                    attachment_type=allure.attachment_type.TEXT
+                )
+            return order_number
+    
+    def is_constructor_tab_visible(self) -> bool:
+        """Проверить видимость вкладки Конструктор"""
+        return self.is_element_visible(HeaderLocators.CONSTRUCTOR_TAB)
+    
+    def get_ingredient_counter(self, ingredient_name) -> int:
+        """Получить значение счётчика ингредиента"""
+        with allure.step(f"Получить счётчик для '{ingredient_name}'"):
+            locator = self.get_locator_with_text(
+                IngredientLocators.INGREDIENT_COUNTER_BY_NAME_XPATH,
+                ingredient_name
+            )
+            text = self.get_element_text(locator)
+            return int(text)

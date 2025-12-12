@@ -7,21 +7,24 @@ from selenium.common.exceptions import (
 from pages.base_page import BasePage
 from locators import OrdersFeedLocators, Urls
 
-
 class OrdersPage(BasePage):
-
+    """Страница ленты заказов"""
+    
     def open_feed(self):
+        """Открыть ленту заказов"""
         with allure.step("Открыть ленту заказов"):
             self.go_to_url(Urls.FEED)
-
+    
     def _parse_counter_text(self, text: str) -> int:
+        """Парсить число из текста"""
         with allure.step(f"Парсить число из текста: {text}"):
             digits = "".join(ch for ch in text if ch.isdigit())
             if not digits:
                 raise ValueError(f"Не удалось извлечь число: {text!r}")
             return int(digits)
-
+    
     def get_completed_all_time_count(self) -> int:
+        """Получить счётчик завершённых заказов (всё время)"""
         with allure.step("Получить счётчик завершённых заказов (всё время)"):
             try:
                 counter_element = self.find_visible_element(OrdersFeedLocators.COMPLETED_ALL_TIME)
@@ -32,8 +35,9 @@ class OrdersPage(BasePage):
             except (NoSuchElementException, TimeoutException, ValueError) as e:
                 allure.attach(str(e), "error", allure.attachment_type.TEXT)
                 return 0
-
+    
     def get_completed_today_count(self) -> int:
+        """Получить счётчик завершённых заказов (сегодня)"""
         with allure.step("Получить счётчик завершённых заказов (сегодня)"):
             try:
                 counter_element = self.find_visible_element(OrdersFeedLocators.COMPLETED_TODAY)
@@ -44,12 +48,9 @@ class OrdersPage(BasePage):
             except (NoSuchElementException, TimeoutException, ValueError) as e:
                 allure.attach(str(e), "error", allure.attachment_type.TEXT)
                 return 0
-
-    def is_element_visible(self, locator):
-        with allure.step("Проверить видимость элемента"):
-            return self.wait_for_element_visible(locator)
-
+    
     def find_order_in_work_section(self, order_number: str) -> bool:
+        """Найти заказ в разделе 'В работе'"""
         with allure.step(f"Найти заказ {order_number} в разделе 'В работе'"):
             try:
                 clean_target = "".join(ch for ch in order_number if ch.isdigit())
@@ -68,8 +69,9 @@ class OrdersPage(BasePage):
             except (NoSuchElementException, TimeoutException, StaleElementReferenceException) as e:
                 allure.attach(str(e), "error", allure.attachment_type.TEXT)
                 return False
-
+    
     def get_in_work_order_numbers(self) -> list:
+        """Получить все номера заказов в работе"""
         with allure.step("Получить все номера заказов в работе"):
             try:
                 self.wait_for_element_visible(OrdersFeedLocators.IN_WORK_ORDERS)
@@ -89,15 +91,3 @@ class OrdersPage(BasePage):
             except (NoSuchElementException, TimeoutException, StaleElementReferenceException) as e:
                 allure.attach(str(e), "error", allure.attachment_type.TEXT)
                 return []
-
-    def wait_for_completed_today_count_change(self, initial_count: int, timeout: int = 15):
-        with allure.step(f"Ждать изменения счётчика за сегодня (было: {initial_count})"):
-            def count_changed(driver):
-                try:
-                    current_count = self.get_completed_today_count()
-                    return current_count > initial_count
-                except (NoSuchElementException, TimeoutException, StaleElementReferenceException, ValueError):
-                    return False
-            
-            self.wait.until(count_changed, timeout)
-            return self.get_completed_today_count()
